@@ -106,6 +106,7 @@ class cp_push_request(web.RequestHandler):
         self._tsdb.myproto.put('catchpoint.status.by_region', D, 'counter', ['nodeid', 'region', 'status'])
         self._tsdb.myproto.put('catchpoint.rtt.by_isp', D, 'rtt', ['nodeid', 'isp'])
         self._tsdb.myproto.put('catchpoint.status.by_isp', D, 'counter', ['nodeid', 'isp', 'status'])
+        self._tsdb.myproto.put('catchpoint.error.by_node', D, 'counter', ['nodeid', 'error'])
 
         defer.succeed(True)
 
