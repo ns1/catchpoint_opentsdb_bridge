@@ -24,8 +24,14 @@ class OpenTSDBProtocol(Protocol):
 
     @defer.inlineCallbacks
     def put(self, metric_base, D, valkey, tagkeys=()):
+        def _utf8_encode(obj):
+            if isinstance(obj, unicode):
+                return obj.encode("utf-8")
+            if isinstance(obj, str):
+                return obj
+            return str(obj)
         metric = '%s.%s' % (metric_base, D['testid'])
-        tags = ' '.join(['%s=%s' % (k, str(D[k]) if D[k] is not None else '') for k in tagkeys])
+        tags = ' '.join(['%s=%s' % (k, _utf8_encode(D[k]) if D[k] is not None else '') for k in tagkeys])
         putline = 'put %s %d %f %s\n' % (metric, D['timestamp'], float(D[valkey]), tags)
         yield self.transport.write(putline)
         defer.succeed(True)
