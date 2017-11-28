@@ -14,6 +14,8 @@ from twisted.internet.endpoints import TCP4ClientEndpoint
 from twisted.python import log as twisted_log
 import time
 import json
+import os
+from distutils.dir_util import mkpath
 
 loglevel = 'INFO'
 
@@ -29,7 +31,11 @@ h = logging.StreamHandler(sys.stdout)
 h.setFormatter(term_format)
 l.addHandler(h)
 
-log_file = sys.argv[0][:-3] + '.log'
+# create a log file at logs/catchoint_opentsdb_bridge.log
+current_dir = os.path.dirname(os.path.realpath(__file__))
+log_dir = current_dir + '/logs/'
+mkpath(log_dir)
+log_file = log_dir + sys.argv[0].split('/')[-1][:-3] + '.log'
 
 obs = twisted_log.PythonLoggingObserver()
 obs.start()
