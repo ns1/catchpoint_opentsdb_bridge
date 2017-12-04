@@ -16,6 +16,7 @@ import time
 import json
 import os
 from distutils.dir_util import mkpath
+import traceback
 
 loglevel = 'INFO'
 
@@ -130,9 +131,14 @@ class cp_push_request(web.RequestHandler):
             defer.succeed(True)
         else:
             # not connected to tsdb, dump data to file
-            with open(log_file, 'a') as outfile:
-                json.dump(D, outfile)
-                outfile.write('\n')
+            try:
+                with open(log_file, 'a') as outfile:
+                    json.dump(D, outfile)
+                    outfile.write('\n')
+            except IOError:
+                tb = traceback.format_exc()
+                l.warning(tb)
+                return
 
 if __name__ == '__main__':
 
