@@ -14,11 +14,32 @@ from twisted.internet.endpoints import TCP4ClientEndpoint
 from twisted.python import log as twisted_log
 import time
 import json
-
+import os
+from distutils.dir_util import mkpath
+import traceback
 
 loglevel = 'INFO'
-#loglevel = 'DEBUG'
 
+l = logging.getLogger()
+l.setLevel(loglevel)
+format_str = '[cp_pushd' \
+    + ':%(module)s:%(name)s:%(lineno)d] ' \
+    '%(levelname)s: %(message)s'
+term_format = logging.Formatter(fmt='%(asctime)s ' + format_str)
+
+# log to stdout for now
+h = logging.StreamHandler(sys.stdout)
+h.setFormatter(term_format)
+l.addHandler(h)
+
+# create a log file at logs/catchoint_opentsdb_bridge.log
+current_dir = os.path.dirname(os.path.realpath(__file__))
+log_dir = current_dir + '/logs/'
+mkpath(log_dir)
+log_file = log_dir + sys.argv[0].split('/')[-1][:-3] + '.log'
+
+obs = twisted_log.PythonLoggingObserver()
+obs.start()
 
 class OpenTSDBProtocol(Protocol):
 
@@ -60,8 +81,6 @@ class cp_push_request(web.RequestHandler):
     # {"Version":3,"V":3,"TestDetail":{"Name":"Test Name","TypeId":5,"MonitorTypeId":13},"TestId":12345,"ReportWindow":"201602260100","NodeId":312,"NodeName":"Jinan, CN - Unicom","Asn":4837,"DivisionId":1033,"ClientId":1234,"Summary":{"V":1,"Timestamp":"20160226010449609","Timing":{"Total":158},"Address":"1.2.3.4","Request":"www.example.com"}}
 
     def post(self):
-        if self._tsdb.myproto is None:
-            return  # not connected to tsdb, drop this datapoint
         try:
             body = json.loads(self.request.body)
             nodeid = body.get('NodeId', None)
@@ -90,26 +109,36 @@ class cp_push_request(web.RequestHandler):
 
         D.update(node)
 
-        # put each of these in tsdb, and tag the by_xxx, and nodeid so
-        # we can agg across all nodes
-        self._tsdb.myproto.put('catchpoint.rtt.by_node', D, 'rtt', ['nodeid'])
-        self._tsdb.myproto.put('catchpoint.status.by_node', D, 'counter', ['nodeid', 'status'])
-        self._tsdb.myproto.put('catchpoint.rtt.by_asn', D, 'rtt', ['nodeid', 'asn'])
-        self._tsdb.myproto.put('catchpoint.status.by_asn', D, 'counter', ['nodeid', 'asn', 'status'])
-        self._tsdb.myproto.put('catchpoint.rtt.by_continent', D, 'rtt', ['nodeid', 'continent'])
-        self._tsdb.myproto.put('catchpoint.status.by_continent', D, 'counter', ['nodeid', 'continent', 'status'])
-        self._tsdb.myproto.put('catchpoint.rtt.by_city', D, 'rtt', ['nodeid', 'city'])
-        self._tsdb.myproto.put('catchpoint.status.by_city', D, 'counter', ['nodeid', 'city', 'status'])
-        self._tsdb.myproto.put('catchpoint.rtt.by_country', D, 'rtt', ['nodeid', 'country'])
-        self._tsdb.myproto.put('catchpoint.status.by_country', D, 'counter', ['nodeid', 'country', 'status'])
-        self._tsdb.myproto.put('catchpoint.rtt.by_region', D, 'rtt', ['nodeid', 'region'])
-        self._tsdb.myproto.put('catchpoint.status.by_region', D, 'counter', ['nodeid', 'region', 'status'])
-        self._tsdb.myproto.put('catchpoint.rtt.by_isp', D, 'rtt', ['nodeid', 'isp'])
-        self._tsdb.myproto.put('catchpoint.status.by_isp', D, 'counter', ['nodeid', 'isp', 'status'])
-        self._tsdb.myproto.put('catchpoint.error.by_node', D, 'counter', ['nodeid', 'error'])
+        if self._tsdb is not None and self._tsdb.myproto is not None:
+            # put each of these in tsdb, and tag the by_xxx, and nodeid so
+            # we can agg across all nodes
+            self._tsdb.myproto.put('catchpoint.rtt.by_node', D, 'rtt', ['nodeid'])
+            self._tsdb.myproto.put('catchpoint.status.by_node', D, 'counter', ['nodeid', 'status'])
+            self._tsdb.myproto.put('catchpoint.rtt.by_asn', D, 'rtt', ['nodeid', 'asn'])
+            self._tsdb.myproto.put('catchpoint.status.by_asn', D, 'counter', ['nodeid', 'asn', 'status'])
+            self._tsdb.myproto.put('catchpoint.rtt.by_continent', D, 'rtt', ['nodeid', 'continent'])
+            self._tsdb.myproto.put('catchpoint.status.by_continent', D, 'counter', ['nodeid', 'continent', 'status'])
+            self._tsdb.myproto.put('catchpoint.rtt.by_city', D, 'rtt', ['nodeid', 'city'])
+            self._tsdb.myproto.put('catchpoint.status.by_city', D, 'counter', ['nodeid', 'city', 'status'])
+            self._tsdb.myproto.put('catchpoint.rtt.by_country', D, 'rtt', ['nodeid', 'country'])
+            self._tsdb.myproto.put('catchpoint.status.by_country', D, 'counter', ['nodeid', 'country', 'status'])
+            self._tsdb.myproto.put('catchpoint.rtt.by_region', D, 'rtt', ['nodeid', 'region'])
+            self._tsdb.myproto.put('catchpoint.status.by_region', D, 'counter', ['nodeid', 'region', 'status'])
+            self._tsdb.myproto.put('catchpoint.rtt.by_isp', D, 'rtt', ['nodeid', 'isp'])
+            self._tsdb.myproto.put('catchpoint.status.by_isp', D, 'counter', ['nodeid', 'isp', 'status'])
+            self._tsdb.myproto.put('catchpoint.error.by_node', D, 'counter', ['nodeid', 'error'])
 
-        defer.succeed(True)
-
+            defer.succeed(True)
+        else:
+            # not connected to tsdb, dump data to file
+            try:
+                with open(log_file, 'a') as outfile:
+                    json.dump(D, outfile)
+                    outfile.write('\n')
+            except IOError:
+                tb = traceback.format_exc()
+                l.warning(tb)
+                return
 
 if __name__ == '__main__':
 
@@ -119,29 +148,21 @@ if __name__ == '__main__':
     ap.add_argument('-p', '--tsdb-port', default=4242, help='OpenTSDB port', type=int)
     ap.add_argument('-k', '--key', help='Catchpoint Push API key', required=True)
     ap.add_argument('-s' ,'--secret', help='Catchpoint Push API secret', required=True)
+    ap.add_argument('-f' ,'--file-mode', action='store_true', help='Dump Catchpoint data to the local filesystem and do not connect to OpenTSDB')
     args = ap.parse_args()
-
-    l = logging.getLogger()
-    l.setLevel(loglevel)
-    format_str = '[cp_pushd' \
-        + ':%(module)s:%(name)s:%(lineno)d] ' \
-        '%(levelname)s: %(message)s'
-    term_format = logging.Formatter(fmt='%(asctime)s ' + format_str)
-
-    # log to stdout for now
-    h = logging.StreamHandler(sys.stdout)
-    h.setFormatter(term_format)
-    l.addHandler(h)
-
-    obs = twisted_log.PythonLoggingObserver()
-    obs.start()
 
     # init catchpoint node list
     nodes = catchpoint_nodes(args.key, args.secret)
     nodes.update_node_list()
 
-    tsdb = OpenTSDBFactory()
-    reactor.connectTCP(args.tsdb_host, args.tsdb_port, tsdb)
+    if args.file_mode:
+        l.info('File mode detected. Not connecting to OpenTSDB')
+        l.info("Printing Catchpoint data to local log file {log_file}".format(log_file=log_file))
+        tsdb = None
+    else:
+        l.info('Connecting to OpenTSDB')
+        tsdb = OpenTSDBFactory()
+        reactor.connectTCP(args.tsdb_host, args.tsdb_port, tsdb)
 
     app = web.Application([(r'/', cp_push_request, dict(tsdb=tsdb))], xheaders=True, debug=True)
     reactor.listenTCP(port=args.listen, factory=app)
