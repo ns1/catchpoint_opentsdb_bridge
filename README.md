@@ -1,4 +1,5 @@
 # Catchpoint Push API to OpenTSDB bridge
+> This project is [inactive](https://github.com/ns1/community/blob/master/project_status/INACTIVE.md).
 
 ## Description
 
@@ -49,6 +50,10 @@ pre-sliced in a few ways: by node, ASN, continent, city, country,
 region, and ISP.  It would be easy to add more, or add additional
 tagging to the existing metrics.  We are optimizing for display-time
 simplicity/speed in our use case.
+
+Contributions
+---
+Pull Requests and issues are welcome. See the [NS1 Contribution Guidelines](https://github.com/ns1/community) for more information.
 
 ## License
 
